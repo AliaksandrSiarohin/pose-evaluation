@@ -1,0 +1,12 @@
+[submodule "face-alignment"]
+	path = face-alignment
+	url = https://github.com/1adrianb/face-alignment
+[submodule "OpenFacePytorch"]
+	path = OpenFacePytorch
+	url = https://github.com/thnkim/OpenFacePytorch
+[submodule "pose_estimation"]
+	path = pose_estimation
+	url = https://github.com/tensorboy/pytorch_Realtime_Multi-Person_Pose_Estimation
+[submodule "reid_baseline"]
+	path = reid_baseline
+	url = https://github.com/layumi/Person_reID_baseline_pytorch
