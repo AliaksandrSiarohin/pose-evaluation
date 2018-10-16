@@ -21,7 +21,9 @@ def frames2array(file, is_video, image_shape=None, column=0):
             return []
     else:
         ## Image is given, interpret it as video with one frame
-        video = imread(file)
+        image = imread(file)
+        if image.shape[2] == 4:
+            image = image[..., :3]
         video = video[np.newaxis]
 
     if image_shape is None:

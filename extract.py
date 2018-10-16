@@ -1,22 +1,20 @@
-from imageio import mimread, imread, mimsave
 import numpy as np
-import warnings
 import pandas as pd
 import os
 from tqdm import tqdm
 from skimage.transform import resize
+from util import frames2array
 
 
-def extract_facial_landmarks(in_folder, image_shape, column):
+def extract_face_pose(in_folder, is_video, image_shape, column):
     import face_alignment
-    from skimage import io
 
     fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, flip_input=False)
 
     out_df = {'file_name': [], 'frame_number': [], 'value': []}
 
     for file in tqdm(os.listdir(in_folder)):
-        video = frames2array(os.path.join(in_folder, file), image_shape, column)
+        video = frames2array(os.path.join(in_folder, file), is_video, image_shape, column)
         for i, frame in enumerate(video):
             kp = fa.get_landmarks(frame)[0]
             out_df['file_name'].append(file)
@@ -26,8 +24,8 @@ def extract_facial_landmarks(in_folder, image_shape, column):
     return pd.DataFrame(out_df)
 
 
-def extract_face_id_embeddings(in_folder, image_shape, column):
-    from evaluation.OpenFacePytorch.loadOpenFace import prepareOpenFace
+def extract_face_id(is_video, in_folder, image_shape, column):
+    from OpenFacePytorch.loadOpenFace import prepareOpenFace
     from torch.autograd import Variable
     import torch
 
@@ -36,7 +34,7 @@ def extract_face_id_embeddings(in_folder, image_shape, column):
     out_df = {'file_name': [], 'frame_number': [], 'value': []}
 
     for file in tqdm(os.listdir(in_folder)):
-        video = frames2array(os.path.join(in_folder, file), image_shape, column)
+        video = frames2array(os.path.join(in_folder, file), is_video, image_shape, column)
         for i, frame in enumerate(video):
             frame = frame[..., ::-1]
             frame = resize(frame, (96, 96))
@@ -53,11 +51,11 @@ def extract_face_id_embeddings(in_folder, image_shape, column):
     return pd.DataFrame(out_df)
 
 
-def extract_pose(in_folder, image_shape, column):
-    from evaluation.pose_estimation.evaluate.coco_eval import get_multiplier, get_outputs, handle_paf_and_heat
+def extract_body_pose(in_folder, is_video, image_shape, column):
+    from pose_estimation.evaluate.coco_eval import get_multiplier, get_outputs, handle_paf_and_heat
     import torch
-    from evaluation.pose_estimation.network.rtpose_vgg import get_model
-    from evaluation.pose_estimation.network.post import decode_pose
+    from pose_estimation.network.rtpose_vgg import get_model
+    from pose_estimation.network.post import decode_pose
 
     weight_name = 'pose_estimation/network/weight/pose_model.pth'
 
@@ -76,7 +74,7 @@ def extract_pose(in_folder, image_shape, column):
             multiplier = get_multiplier(frame)
 
             with torch.no_grad():
-                orig_paf, orig_heat = get_outputs(multiplier, frame, model, 'rtpose')
+                orig_paf, orig_heat = get_outputs(multiplier, is_video, frame, model, 'rtpose')
 
                 # Get results of flipped image
                 swapped_img = frame[:, ::-1, :]
@@ -100,26 +98,34 @@ def extract_pose(in_folder, image_shape, column):
     return pd.DataFrame(out_df)
 
 
-def extract_pose_embeddings(in_folder, image_shape, column):
-    from evaluation.Person_reID_baseline_pytorch.model import ft_net_dense
-    from torch.autograd import Variable
+def extract_body_id(in_folder, is_video, image_shape, column):
+    from reid_baseline.model import ft_net
+    from torch import nn
+    from torchvision import transforms
     import torch
 
-    net = ft_net_dense(751)
-    net.load_state_dict('')
+    net = ft_net(751)
+    net.load_state_dict(torch.load('reid_baseline/reid_model.pth'))
+    net.model.fc = nn.Sequential()
+    net.classifier = nn.Sequential()
+    net.cuda()
+
+    data_transforms = transforms.Compose([
+        transforms.ToPILImage(),
+        transforms.Resize((288,144), interpolation=3),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ])
 
     out_df = {'file_name': [], 'frame_number': [], 'value': []}
 
     for file in tqdm(os.listdir(in_folder)):
-        video = frames2array(os.path.join(in_folder, file), image_shape, column)
+        video = frames2array(os.path.join(in_folder, file), is_video, image_shape, column)
         for i, frame in enumerate(video):
-            frame = frame[..., ::-1]
-            frame = resize(frame, (96, 96))
-            frame = np.transpose(frame, (2, 0, 1))
+            frame = data_transforms(np.array(frame)).cuda()
             with torch.no_grad():
-                frame = Variable(torch.Tensor(frame)).cuda()
-                frame = frame.unsqueeze(0)
-                id_vec = net(frame)[0].data.cpu().numpy()
+                id_vec = net(frame.unsqueeze(0))
+                id_vec = id_vec.data.cpu().numpy()
 
             out_df['file_name'].append(file)
             out_df['frame_number'].append(i)
@@ -128,9 +134,29 @@ def extract_pose_embeddings(in_folder, image_shape, column):
     return pd.DataFrame(out_df)
 
 
-
 if __name__ == "__main__":
-    df = extract_pose('test', (64, 64), 0)
-    df.sort_values(by=['file_name', 'frame_number'])
+    from argparse import ArgumentParser
+    parser = ArgumentParser()
+
+    parser.add_argument("--in_folder", default="test", help="Folder with images")
+    parser.add_argument("--out_file", default="test.pkl", help="Extracted values")
+    parser.add_argument("--is_video", dest='is_video', action='store_true', help="If this is a video.")
+    parser.add_argument("--column", default=0, type=int, help="Some generation tools stack multiple images together,"
+                                                              " the index of the comlumn with right images")
+    parser.add_argument("--image_shape", default=(64, 64), type=lambda x: [int(a) for a in x.split(',')],
+                        help="Image shape")
+
+    parser.add_argument("--type", default='body_id', choices=['face_id', 'face_pose', 'body_id', 'body_pose'],
+                        help="Type of info to extract")
+
+    args = parser.parse_args()
+
+    func = locals()["extract_" + args.type]
+    out_file = args.out_file
+    del args.type, args.out_file
+
+    df = func(**vars(args))
+
+    df.to_pickle(out_file)
 
 
