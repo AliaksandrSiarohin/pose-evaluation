@@ -10,16 +10,20 @@ df1, df2 = parser.parse_args().input
 df1 = pd.read_pickle(df1)
 df2 = pd.read_pickle(df2)
 
-df1.sort_values(by=['file_name', 'frame_number'])
-df2.sort_values(by=['file_name', 'frame_number'])
+df1 = df1.sort_values(by=['file_name', 'frame_number'])
+#df2 = df1.sort_values(by=['file_name', 'frame_number'], ascending=False)
+df2 = df2.sort_values(by=['file_name', 'frame_number'])
 
 assert df1.shape == df2.shape
 
 scores = []
 
 for i in range(df1.shape[0]):
-    assert df1['file_name'][i] == df2['file_name'][i]
-    assert df1['frame_number'][i] == df2['frame_number'][i]
-    scores.append(np.mean(np.abs(df1['value'][i] - df2['value'][i]).astype(float)))
+    file_name1 = df1['file_name'].iloc[i].split('.')[0]
+    file_name2 = df2['file_name'].iloc[i].split('.')[0]
+    assert file_name1 == file_name2
+    assert df1['frame_number'].iloc[i] == df2['frame_number'].iloc[i]
+ 
+    scores.append(np.mean(np.abs(df1['value'].iloc[i] - df2['value'].iloc[i]).astype(float)))
 
 print ("Average difference: %s" % np.mean(scores))

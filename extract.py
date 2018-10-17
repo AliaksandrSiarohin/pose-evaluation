@@ -28,6 +28,7 @@ def extract_face_id(is_video, in_folder, image_shape, column):
     from OpenFacePytorch.loadOpenFace import prepareOpenFace
     from torch.autograd import Variable
     import torch
+    from imageio import mimsave
 
     net = prepareOpenFace(useCuda=True, gpuDevice=0, useMultiGPU=False).eval()
 

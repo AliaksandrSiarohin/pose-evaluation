@@ -6,7 +6,7 @@
 	url = https://github.com/thnkim/OpenFacePytorch
 [submodule "pose_estimation"]
 	path = pose_estimation
-	url = https://github.com/tensorboy/pytorch_Realtime_Multi-Person_Pose_Estimation
+	url = https://github.com/AliaksandrSiarohin/pose-evaluation
 [submodule "reid_baseline"]
 	path = reid_baseline
 	url = https://github.com/layumi/Person_reID_baseline_pytorch
