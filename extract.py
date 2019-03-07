@@ -4,6 +4,46 @@ import os
 from tqdm import tqdm
 from skimage.transform import resize
 from util import frames2array
+from imageio import mimsave
+
+def extract_vgg(in_folder, is_video, image_shape, column):
+    from torchvision.models import vgg
+    from torchvision import transforms
+    from torch import nn
+    import torch
+
+    class VggConv(nn.Module):
+            def __init__(self):
+                super(VggConv, self).__init__()
+                self.original_model = vgg.vgg16(pretrained=True)
+            def forward(self, x):
+                x = self.original_model.features(x)
+                return x
+
+    net = VggConv().cuda()
+
+    out_df = {'file_name': [], 'frame_number': [], 'value': []}
+
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+
+    transform = transforms.Compose([
+                     transforms.ToTensor(),
+                     normalize])
+    for file in tqdm(sorted(os.listdir(in_folder))):
+        video = frames2array(os.path.join(in_folder, file), is_video, image_shape, column)
+        for i, frame in enumerate(video):
+            with torch.no_grad():
+                frame = frame.astype('float32') / 255.0
+                frame = transform(frame)
+                frame = frame.unsqueeze(0).cuda()
+                feat = net(frame).data.cpu().numpy()
+            out_df['file_name'].append(file)
+            out_df['frame_number'].append(i)
+            out_df['value'].append(feat)
+
+    return pd.DataFrame(out_df)
+
 
 
 def extract_face_pose(in_folder, is_video, image_shape, column):
@@ -16,7 +56,9 @@ def extract_face_pose(in_folder, is_video, image_shape, column):
     for file in tqdm(os.listdir(in_folder)):
         video = frames2array(os.path.join(in_folder, file), is_video, image_shape, column)
         for i, frame in enumerate(video):
-            kp = fa.get_landmarks(frame)[0]
+            kp = fa.get_landmarks(frame)
+            if kp is not None:
+               kp = kp[0]
             out_df['file_name'].append(file)
             out_df['frame_number'].append(i)
             out_df['value'].append(kp)
@@ -69,13 +111,13 @@ def extract_body_pose(in_folder, is_video, image_shape, column):
     out_df = {'file_name': [], 'frame_number': [], 'value': []}
 
     for file in tqdm(os.listdir(in_folder)):
-        video = frames2array(os.path.join(in_folder, file), image_shape, column)
-        for i, frame in tqdm(enumerate(video)):
+        video = frames2array(os.path.join(in_folder, file), is_video, image_shape, column)
+        for i, frame in enumerate(video):
             frame = frame[..., ::-1]# B,G,R order
             multiplier = get_multiplier(frame)
 
             with torch.no_grad():
-                orig_paf, orig_heat = get_outputs(multiplier, is_video, frame, model, 'rtpose')
+                orig_paf, orig_heat = get_outputs(multiplier, frame, model, 'rtpose')
 
                 # Get results of flipped image
                 swapped_img = frame[:, ::-1, :]
@@ -86,9 +128,11 @@ def extract_body_pose(in_folder, is_video, image_shape, column):
 
             param = {'thre1': 0.1, 'thre2': 0.05, 'thre3': 0.5}
             _, _, joint_list, _ = decode_pose(frame, param, heatmap, paf)
+            
             joint_list = np.array(joint_list)
             tmp = -np.ones((18, 2))
-            tmp[joint_list[:, -1].astype(int)] = joint_list[:, :2]
+            if len(joint_list) != 0:
+                tmp[joint_list[:, -1].astype(int)] = joint_list[:, :2]
             joint_list = tmp
 
             out_df['file_name'].append(file)
@@ -115,6 +159,7 @@ def extract_body_id(in_folder, is_video, image_shape, column):
         transforms.ToPILImage(),
         transforms.Resize((288,144), interpolation=3),
         transforms.ToTensor(),
+        transforms.Normalize([0., 0., 0.], [255., 255., 255.]),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
 
@@ -123,7 +168,7 @@ def extract_body_id(in_folder, is_video, image_shape, column):
     for file in tqdm(os.listdir(in_folder)):
         video = frames2array(os.path.join(in_folder, file), is_video, image_shape, column)
         for i, frame in enumerate(video):
-            frame = data_transforms(np.array(frame)).cuda()
+            frame = data_transforms(frame).cuda()
             with torch.no_grad():
                 id_vec = net(frame.unsqueeze(0))
                 id_vec = id_vec.data.cpu().numpy()
@@ -144,10 +189,10 @@ if __name__ == "__main__":
     parser.add_argument("--is_video", dest='is_video', action='store_true', help="If this is a video.")
     parser.add_argument("--column", default=0, type=int, help="Some generation tools stack multiple images together,"
                                                               " the index of the comlumn with right images")
-    parser.add_argument("--image_shape", default=(64, 64), type=lambda x: [int(a) for a in x.split(',')],
+    parser.add_argument("--image_shape", default=(64, 64), type=lambda x: tuple([int(a) for a in x.split(',')]),
                         help="Image shape")
 
-    parser.add_argument("--type", default='body_id', choices=['face_id', 'face_pose', 'body_id', 'body_pose'],
+    parser.add_argument("--type", default='body_id', choices=['face_id', 'face_pose', 'body_id', 'body_pose', 'vgg'],
                         help="Type of info to extract")
 
     args = parser.parse_args()
