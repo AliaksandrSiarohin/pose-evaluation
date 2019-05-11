@@ -1,11 +1,14 @@
 from imageio import mimread, imread, mimsave
 import numpy as np
 import warnings
-
+import os
 
 def frames2array(file, is_video, image_shape=None, column=0):
     if is_video:
-        if file.endswith('.png') or file.endswith('.jpg'):
+        if os.path.isdir(file):
+            images = [imread(os.path.join(file, name))  for name in sorted(os.listdir(file))]
+            video = np.array(images)
+        elif file.endswith('.png') or file.endswith('.jpg'):
             ### Frames is stacked (e.g taichi ground truth)
             image = imread(file)
             if image.shape[2] == 4:
