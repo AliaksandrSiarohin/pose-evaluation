@@ -8,9 +8,11 @@ if the identity is preserved.
 git clone --recursive https://github.com/AliaksandrSiarohin/pose-evaluation
 ```
 
+The general pipeline first compute the statistics for real data and generated using the script ```extract.py```. Then use script ```cmp.py``` to measure the final score.
+
 ### Faces
 
-For extracting face keypoints we use: https://github.com/1adrianb/face-alignment
+For extracting face keypoints (AKD) we use: https://github.com/1adrianb/face-alignment
 
 ```
 cd face-aligment
@@ -19,20 +21,22 @@ python setup.py install
 ```
 
 ```
-python extract.py --in_folder mtm/data/nemo/test --out_file nemo_pose_gt.pkl --is_video --type face_pose
-python extract.py --in_folder log/nemo/reconstruction --out_file nemo_pose_gen.pkl --is_video --column 2 --type face_pose
+python extract.py --in_folder /path/to/test --out_file pose_gt.pkl --is_video --type face_pose --image_shape 256,256
+python extract.py --in_folder /path/to/generated/png --out_file pose_gen.pkl --is_video --type face_pose --image_shape 256,256
+python cmp_kp.py pose_gt.pkl pose_gen.pkl
 ```
 
-For extracting identity embedding we use: https://github.com/thnkim/OpenFacePytorch
+For extracting identity embedding (AED) we use: https://github.com/thnkim/OpenFacePytorch
 
 ```
-python extract.py --in_folder mtm/data/nemo/test --out_file nemo_id_gt.pkl --is_video --type face_id
-python extract.py --in_folder log/nemo/reconstruction --out_file nemo_id_gen.pkl --is_video --column 2 --type face_id
+python extract.py --in_folder /path/to/test --out_file id_gt.pkl --is_video --type face_pose --image_shape 256,256
+python extract.py --in_folder /path/to/generated/png --out_file id_gen.pkl --is_video --type face_pose --image_shape 256,256
+python cmp.py id_gt.pkl id_gen.pkl
 ```
 
 ### Poses
 
-For extracting pose keypoints we use: https://github.com/tensorboy/pytorch_Realtime_Multi-Person_Pose_Estimation
+For extracting pose keypoints (AKD) we use: https://github.com/tensorboy/pytorch_Realtime_Multi-Person_Pose_Estimation
 
 Download model https://yadi.sk/d/0L-PgAaGRKgkJA
 ```
@@ -41,14 +45,16 @@ mv pose_model.pth pytorch_Realtime_Multi-Person_Pose_Estimation/network/weight/p
 ```
 
 ```
-python extract.py --in_folder mtm/data/taichi/test --out_file taichi_pose_gt.pkl --is_video --type body_pose
-python extract.py --in_folder log/taichi/reconstruction --out_file taichi_pose_gen.pkl --is_video --column 2 --type body_pose
+python extract.py --in_folder /path/to/test --out_file pose_gt.pkl --is_video --type body_pose --image_shape 256,256
+python extract.py --in_folder /path/to/generated/png --out_file pose_gen.pkl --is_video --type body_pose --image_shape 256,256
+python cmp_with_missing.py pose_gt.pkl pose_gen.pkl
 ```
 
-For extracting identity embedding we use: https://github.com/layumi/Person_reID_baseline_pytorch
+For extracting identity embedding (AED) we use: https://github.com/layumi/Person_reID_baseline_pytorch
 
 Download model https://yadi.sk/d/jAPhvFEFp6qzIw
 ```
-python extract.py --in_folder mtm/data/taichi/test --out_file taichi_id_gt.pkl --is_video --type body_id
-python extract.py --in_folder log/taichi/reconstruction --out_file taichi_id_gen.pkl --is_video --column 2 --type body_id
+python extract.py --in_folder /path/to/test --out_file id_gt.pkl --is_video --type body_id --image_shape 256,256
+python extract.py --in_folder /path/to/generated/png --out_file id_gen.pkl --is_video --type body_id --image_shape 256,256
+python cmp.py id_gt.pkl id_gen.pkl
 ```
