@@ -29,8 +29,8 @@ python cmp_kp.py pose_gt.pkl pose_gen.pkl
 For extracting identity embedding (AED) we use: https://github.com/thnkim/OpenFacePytorch
 
 ```
-python extract.py --in_folder /path/to/test --out_file id_gt.pkl --is_video --type face_pose --image_shape 256,256
-python extract.py --in_folder /path/to/generated/png --out_file id_gen.pkl --is_video --type face_pose --image_shape 256,256
+python extract.py --in_folder /path/to/test --out_file id_gt.pkl --is_video --type face_id --image_shape 256,256
+python extract.py --in_folder /path/to/generated/png --out_file id_gen.pkl --is_video --type face_id --image_shape 256,256
 python cmp.py id_gt.pkl id_gen.pkl
 ```
 
